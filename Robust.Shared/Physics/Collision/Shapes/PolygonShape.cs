@@ -307,6 +307,11 @@ namespace Robust.Shared.Physics.Collision.Shapes
             return new Box2(lower - r, upper + r);
         }
 
+        public bool CastRay(ref Vector2 position, ref Vector2 direction, float length, out float fraction)
+        {
+            return Robust.Shared.Physics.Shapes.Polygon.StaticCastRay(ref Vertices, ref Normals, ref position, ref direction, length, out fraction);
+        }
+
         public static explicit operator PolygonShape(PhysShapeAabb aabb)
         {
             // TODO: Need a test for this probably, if there is no AABB manifold generator done at least.

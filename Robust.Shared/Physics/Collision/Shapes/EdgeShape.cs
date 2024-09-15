@@ -128,6 +128,40 @@ namespace Robust.Shared.Physics.Collision.Shapes
             return new Box2(lower - radius, upper + radius);
         }
 
+        public bool CastRay(ref Vector2 position, ref Vector2 direction, float length, out float fraction)
+        {
+            var d = Vertex2 - Vertex1;
+            var rayEnd = direction * length;
+            // Want to solve for:
+            // position + rayEnd * t = Vertex1 + d * u
+            // Cross both sides
+            // position x d + (rayEnd x d) * t = Vertex1 x d + (d x d) * u
+            // Rearrange:
+            // t = (Vertex1 x d - position x d) / (rayEnd x d)
+            fraction = (Determinant(ref Vertex1, ref d) - Determinant(ref position, ref d)) / Determinant(ref rayEnd, ref d);
+            if (fraction > 0.0f && fraction < 1.0f)
+            {
+                // Now, solve the same for u, gives us:
+                // position x rayEnd = Vertex1 x rayEnd + (d x rayEnd) * u
+                // (position x rayEnd - Vertex1 x rayEnd) / (d x rayEnd) = u
+                var u = (Determinant(ref position, ref rayEnd) - Determinant(ref Vertex1, ref rayEnd)) / Determinant(ref d, ref rayEnd);
+                if (u > 0.0f && u < 1.0f)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Return the determinant of the 2x2 matrix with columns col0, col1
+        /// todo.eoin Move this inside Matrix22!
+        /// </summary>
+        public float Determinant(ref Vector2 col0, ref Vector2 col1)
+        {
+            return col0.X * col1.Y - col1.X * col0.Y;
+        }
+
         public float CalculateArea()
         {
             // It's a line

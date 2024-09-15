@@ -259,25 +259,28 @@ namespace Robust.Shared.Physics.Systems
             Func<EntityUid, TState, bool> predicate, float maxLength = 50F, bool returnOnFirstHit = true)
         {
             List<RayCastResults> results = new();
-            var endPoint = ray.Position + ray.Direction.Normalized() * maxLength;
+            var rayDirection = ray.Direction.Normalized();
+            var endPoint = ray.Position + rayDirection * maxLength;
+            var rayEndFromStart = endPoint - ray.Position;
             var rayBox = new Box2(Vector2.Min(ray.Position, endPoint),
                 Vector2.Max(ray.Position, endPoint));
 
+            //<todo.eoin Rebase, split into multiple changes:
+            //<todo.eoin 1. fix code duplication
+            //<todo.eoin 2. fix unnecessary tree descent
+            //<todo.eoin 3. narrowphase tests
             foreach (var (uid, broadphase) in _broadphase.GetBroadphases(mapId, rayBox))
             {
-                var (_, rot, matrix, invMatrix) = _transform.GetWorldPositionRotationMatrixWithInv(uid);
+                var (_, rot, broadPhaseToWorld, worldToBroadphase) = _transform.GetWorldPositionRotationMatrixWithInv(uid);
 
-                var position = Vector2.Transform(ray.Position, invMatrix);
+                var position = Vector2.Transform(ray.Position, worldToBroadphase);
                 var gridRot = new Angle(-rot.Theta);
                 var direction = gridRot.RotateVec(ray.Direction);
 
                 var gridRay = new CollisionRay(position, direction, ray.CollisionMask);
 
-                broadphase.StaticTree.QueryRay((in FixtureProxy proxy, in Vector2 point, float distFromOrigin) =>
+                Robust.Shared.Physics.DynamicTree<Robust.Shared.Physics.Dynamics.FixtureProxy>.RayQueryCallbackDelegate queryCallback = (in FixtureProxy proxy, in Vector2 point, float distFromOrigin) =>
                 {
-                    if (returnOnFirstHit && results.Count > 0)
-                        return true;
-
                     if (distFromOrigin > maxLength)
                         return true;
 
@@ -290,44 +293,26 @@ namespace Robust.Shared.Physics.Systems
                     if (predicate.Invoke(proxy.Entity, state) == true)
                         return true;
 
-                    // TODO: Shape raycast here
+                    var worldToFixture = _transform.GetInvWorldMatrix(proxy.Entity);
+                    var rayOriginInFixture = Vector2.Transform(ray.Position, worldToFixture);
+                    var rayDirectionInFixture = Vector2.TransformNormal(rayDirection, worldToFixture);
+                    if (proxy.Fixture.Shape.CastRay(ref rayOriginInFixture, ref rayDirectionInFixture, maxLength, out float hitFraction) == false)
+                        return true;
 
                     // Need to convert it back to world-space.
-                    var result = new RayCastResults(distFromOrigin, Vector2.Transform(point, matrix), proxy.Entity);
+                    var result = new RayCastResults(distFromOrigin, ray.Position + rayEndFromStart * hitFraction, proxy.Entity);
                     results.Add(result);
 #if DEBUG
                     _sharedDebugRaySystem.ReceiveLocalRayFromAnyThread(new(ray, maxLength, result, _netMan.IsServer, mapId));
 #endif
-                    return true;
-                }, gridRay);
+                    return !returnOnFirstHit;
+                };
 
-                broadphase.DynamicTree.QueryRay((in FixtureProxy proxy, in Vector2 point, float distFromOrigin) =>
+                broadphase.StaticTree.QueryRay(queryCallback , gridRay);
+                if(returnOnFirstHit == false || results.Count == 0)
                 {
-                    if (returnOnFirstHit && results.Count > 0)
-                        return true;
-
-                    if (distFromOrigin > maxLength)
-                        return true;
-
-                    if ((proxy.Fixture.CollisionLayer & ray.CollisionMask) == 0x0)
-                        return true;
-
-                    if (!proxy.Fixture.Hard)
-                        return true;
-
-                    if (predicate.Invoke(proxy.Entity, state) == true)
-                        return true;
-
-                    // TODO: Shape raycast here
-
-                    // Need to convert it back to world-space.
-                    var result = new RayCastResults(distFromOrigin, Vector2.Transform(point, matrix), proxy.Entity);
-                    results.Add(result);
-#if DEBUG
-                    _sharedDebugRaySystem.ReceiveLocalRayFromAnyThread(new(ray, maxLength, result, _netMan.IsServer, mapId));
-#endif
-                    return true;
-                }, gridRay);
+                    broadphase.DynamicTree.QueryRay(queryCallback, gridRay);
+                }
             }
 
 #if DEBUG

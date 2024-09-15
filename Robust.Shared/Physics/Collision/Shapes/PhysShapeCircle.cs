@@ -58,6 +58,41 @@ namespace Robust.Shared.Physics.Collision.Shapes
             return new Box2(p.X - Radius, p.Y - Radius, p.X + Radius, p.Y + Radius);
         }
 
+        public bool CastRay(ref Vector2 rayOrigin, ref Vector2 rayDir, float rayLength, out float fraction)
+        {
+            fraction = 0.0f;
+            if ((Position - rayOrigin).LengthSquared() < Radius * Radius)
+            {
+                // Starts inside the circle
+                return true;
+            }
+
+            // Project the center of the circle onto the ray
+            var proj = Vector2.Dot(rayDir, Position - rayOrigin);
+            if (proj < 0.0f)
+            {
+                // Ray points away from the circle
+                return false;
+            }
+
+            // This is the closest point between the circle center and the infinite ray:
+            var closestPoint = rayOrigin + rayDir * proj;
+            // Solve for the point on the circle
+            var intersectTSq = Radius * Radius - (closestPoint - Position).LengthSquared();
+            if (intersectTSq <= 0.0f)
+            {
+                // No real roots -> no intersection
+                return false;
+            }
+
+            // Have a hit at closestPoint - direction * sqrt(intersectTSq). Calculate the fraction:
+            //<todo: redundant calculations here:
+            //var intersectionPoint = position + direction * (proj - float.Sqrt(intersectTSq));
+            //fraction = (intersectionPoint - position).Length() / length;
+            fraction = (proj - float.Sqrt(intersectTSq)) / rayLength;
+            return fraction <= 1.0f;
+        }
+
         public Box2 CalcLocalBounds()
         {
             // circle inscribed in box

@@ -64,6 +64,32 @@ namespace Robust.Shared.Physics.Collision.Shapes
             return new Box2Rotated(_localBounds.Translated(transform.Position), transform.Quaternion2D.Angle, transform.Position).CalcBoundingBox().Enlarged(_radius);
         }
 
+        public bool CastRay(ref Vector2 position, ref Vector2 direction, float length, out float fraction)
+        {
+            fraction = -float.MaxValue;
+            var tMax = float.MaxValue;
+            if (Math.Abs(direction.X) < 0.0f || Math.Abs(direction.Y) < 0.0f)
+            {
+                if (position.X < LocalBounds.Left || position.Y < LocalBounds.Bottom ||
+                        position.X > LocalBounds.Right || position.Y > LocalBounds.Top)
+                    return false;
+            }
+            else
+            {
+                for (int i = 0;  i < 2; i++)
+                {
+                    float ood = 1.0f / (direction[i] * length);
+                    float t1 = (LocalBounds.BottomLeft[i] - position[i]) * ood;
+                    float t2 = (LocalBounds.TopRight[i] - position[i]) * ood;
+                    if (t1 > t2) (t1, t2) = (t2, t1);
+                    if (t1 > fraction) fraction = t1;
+                    if (t2 > tMax) tMax = t2;
+                    if (fraction > tMax) return false;
+                }
+            }
+            return true;
+        }
+
         [Pure]
         internal List<Vector2> GetVertices()
         {

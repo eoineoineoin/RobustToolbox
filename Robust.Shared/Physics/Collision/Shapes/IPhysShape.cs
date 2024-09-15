@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using Robust.Shared.Maths;
 using Robust.Shared.Physics.Components;
 
@@ -39,5 +40,7 @@ namespace Robust.Shared.Physics.Collision.Shapes
         /// Calculate the AABB of the shape.
         /// </summary>
         Box2 ComputeAABB(Transform transform, int childIndex);
+
+        bool CastRay(ref Vector2 position, ref Vector2 direction, float length, out float fraction);
     }
 }

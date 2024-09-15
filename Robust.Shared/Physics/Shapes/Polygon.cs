@@ -183,6 +183,54 @@ internal record struct Polygon : IPhysShape
         return new Box2(lower - r, upper + r);
     }
 
+    //<todo.eoin This shape is a copy-past of PolygonShape? Why does it exist?
+    public static bool StaticCastRay(
+            ref Vector2[] verts, ref Vector2[] normals,
+            ref Vector2 rayOrigin, ref Vector2 rayDir, float rayLen, out float fractionOut)
+    {
+        fractionOut = 0.0f;
+        var endFraction = 1.0f;
+        for (var i = 0; i < normals.Length; i++)
+        {
+            var shapePlaneDist = Vector2.Dot(normals[i], verts[i]);
+            var rayProjNorm = Vector2.Dot(normals[i], rayDir);
+            var positionPlaneDist = shapePlaneDist - Vector2.Dot(normals[i], rayOrigin);
+            const float epsilon = 1e-7f;
+            if (float.Abs(rayProjNorm) <= epsilon && positionPlaneDist > 0.0f)
+            {
+                // Parallel to this plane, so can't hit the shape //<todo.eoin Maybe want a smaller epsilon?
+                return false;
+            }
+            else
+            {
+                float intersectT = positionPlaneDist / (rayProjNorm * rayLen);
+                // Intersection point on plane is now rayDir * intersectT * rayLen;
+                if (rayProjNorm < 0.0f)
+                {
+                    // Ray into the plane; clip the near fraction
+                    fractionOut = float.Max(intersectT, fractionOut);
+                }
+                else
+                {
+                    // Ray away from the plane, so clip the far fraction
+                    endFraction = float.Min(intersectT, endFraction);
+                }
+
+                if (fractionOut > endFraction)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    public bool CastRay(ref Vector2 position, ref Vector2 direction, float length, out float fraction)
+    {
+        return StaticCastRay(ref Vertices, ref Normals, ref position, ref direction, length, out fraction);
+    }
+
     public bool Equals(IPhysShape? other)
     {
         if (other is not PolygonShape poly) return false;
