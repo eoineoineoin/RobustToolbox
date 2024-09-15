@@ -132,6 +132,11 @@ namespace Robust.Client.Debugging
                         ray.RayHit,
                         color
                         );
+
+                    if (ray.DidActuallyHit)
+                    {
+                        handle.DrawCircle(ray.RayHit, 0.05f, Color.Green);
+                    }
                 }
             }
 
